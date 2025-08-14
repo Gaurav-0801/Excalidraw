@@ -9,7 +9,7 @@ import { PropertiesPanel } from "./PropertiesPanel"
 import { ZoomControls } from "./ZoomControls"
 import { CollaborationPanel } from "./CollaborationPanel"
 import { useWhiteboardStore } from "../store/whiteboardStore"
-import { drawElement, isPointInElement, getElementBounds } from "../utils/drawing"
+import { drawElement, isPointInElement } from "../utils/drawing"
 import { useSocket } from "../hooks/useSocket"
 import type { WebSocketMessage, DrawingElement } from "@repo/common/types"
 
@@ -28,6 +28,7 @@ export function Whiteboard() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isErasing, setIsErasing] = useState(false)
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([])
@@ -286,6 +287,16 @@ export function Whiteboard() {
       ctx.stroke()
     }
 
+    if (selectedTool === "eraser" && isErasing) {
+      const { x, y } = getCanvasCoordinates(lastPanPoint.x, lastPanPoint.y)
+      ctx.strokeStyle = "#ff4444"
+      ctx.lineWidth = 2 / zoom
+      ctx.setLineDash([4, 4])
+      ctx.beginPath()
+      ctx.arc(x, y, 15, 0, 2 * Math.PI)
+      ctx.stroke()
+    }
+
     ctx.restore()
 
     // Draw enhanced cursors
@@ -313,7 +324,20 @@ export function Whiteboard() {
       ctx.fillText(cursor.userName, screenX + 14, screenY - 8)
       ctx.restore()
     })
-  }, [elements, zoom, panOffset, selectedElementId, selectedTool, currentPath, strokeColor, strokeWidth, cursors])
+  }, [
+    elements,
+    zoom,
+    panOffset,
+    selectedElementId,
+    selectedTool,
+    currentPath,
+    strokeColor,
+    strokeWidth,
+    cursors,
+    isErasing,
+    lastPanPoint,
+    getCanvasCoordinates,
+  ])
 
   const drawEnhancedGrid = (ctx: CanvasRenderingContext2D) => {
     const gridSize = 20
@@ -371,6 +395,26 @@ export function Whiteboard() {
     ctx.stroke()
   }
 
+  const eraseAtPoint = useCallback(
+    (x: number, y: number) => {
+      const elementsToDelete = elements.filter((element) => isPointInElement({ x, y }, element))
+
+      elementsToDelete.forEach((element) => {
+        deleteElement(element.id)
+        // Broadcast element deletion
+        if (socket && roomId) {
+          const message: WebSocketMessage = {
+            type: "drawing_delete",
+            roomId,
+            elementId: element.id,
+          }
+          socket.send(JSON.stringify(message))
+        }
+      })
+    },
+    [elements, deleteElement, socket, roomId],
+  )
+
   const handleMouseDown = (e: React.MouseEvent) => {
     const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 
@@ -391,16 +435,22 @@ export function Whiteboard() {
 
       if (clickedElement) {
         if (clickedElement.type === "text") {
-          startTextEditing(clickedElement, x, y)
-          return
+          const now = Date.now()
+          const lastClick = (clickedElement as any).lastClickTime || 0
+          if (now - lastClick < 300) {
+            // Double-click within 300ms
+            startTextEditing(clickedElement, x, y)
+            return
+          } else {
+            ;(clickedElement as any).lastClickTime = now
+          }
         }
 
         setSelectedElementId(clickedElement.id)
         setIsDragging(true)
-        const bounds = getElementBounds(clickedElement)
         setDragOffset({
-          x: x - bounds.x,
-          y: y - bounds.y,
+          x: x - clickedElement.x,
+          y: y - clickedElement.y,
         })
       } else {
         setSelectedElementId(null)
@@ -409,20 +459,8 @@ export function Whiteboard() {
     }
 
     if (selectedTool === "eraser") {
-      // Find and delete element under cursor
-      const elementToDelete = elements.find((element) => isPointInElement({ x, y }, element))
-      if (elementToDelete) {
-        deleteElement(elementToDelete.id)
-        // Broadcast element deletion
-        if (socket && roomId) {
-          const message: WebSocketMessage = {
-            type: "drawing_delete",
-            roomId,
-            elementId: elementToDelete.id,
-          }
-          socket.send(JSON.stringify(message))
-        }
-      }
+      setIsErasing(true)
+      eraseAtPoint(x, y)
       return
     }
 
@@ -484,8 +522,8 @@ export function Whiteboard() {
         type: "text" as const,
         x,
         y,
-        width: 0,
-        height: 0,
+        width: 100, // Initial width for text elements
+        height: 20, // Initial height for text elements
         text: "",
         strokeColor,
         strokeWidth,
@@ -505,8 +543,23 @@ export function Whiteboard() {
     if (textEditElementId && textEditValue.trim()) {
       const updatedElement = elements.find((el) => el.id === textEditElementId)
       if (updatedElement) {
-        const newElement = { ...updatedElement, text: textEditValue.trim() }
-        updateElement(textEditElementId, { text: textEditValue.trim() })
+        const fontSize = Math.max(12, strokeWidth * 8)
+        const lines = textEditValue.trim().split("\n")
+        const maxLineLength = Math.max(...lines.map((line) => line.length))
+        const estimatedWidth = Math.max(100, maxLineLength * fontSize * 0.6)
+        const estimatedHeight = Math.max(20, lines.length * fontSize * 1.2)
+
+        const newElement = {
+          ...updatedElement,
+          text: textEditValue.trim(),
+          width: estimatedWidth,
+          height: estimatedHeight,
+        }
+        updateElement(textEditElementId, {
+          text: textEditValue.trim(),
+          width: estimatedWidth,
+          height: estimatedHeight,
+        })
         broadcastElement(newElement)
       }
     } else if (textEditElementId && !textEditValue.trim()) {
@@ -522,9 +575,18 @@ export function Whiteboard() {
   const handleTextInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTextEditValue(e.target.value)
 
-    // Update element in real-time
     if (textEditElementId) {
-      updateElement(textEditElementId, { text: e.target.value })
+      const fontSize = Math.max(12, strokeWidth * 8)
+      const lines = e.target.value.split("\n")
+      const maxLineLength = Math.max(...lines.map((line) => line.length), 1)
+      const estimatedWidth = Math.max(100, maxLineLength * fontSize * 0.6)
+      const estimatedHeight = Math.max(20, lines.length * fontSize * 1.2)
+
+      updateElement(textEditElementId, {
+        text: e.target.value,
+        width: estimatedWidth,
+        height: estimatedHeight,
+      })
     }
   }
 
@@ -556,6 +618,12 @@ export function Whiteboard() {
         y: panOffset.y + deltaY,
       })
       setLastPanPoint({ x: e.clientX, y: e.clientY })
+      return
+    }
+
+    if (isErasing) {
+      eraseAtPoint(x, y)
+      setLastPanPoint({ x: e.clientX, y: e.clientY }) // Store for eraser cursor
       return
     }
 
@@ -601,6 +669,7 @@ export function Whiteboard() {
     setIsDrawing(false)
     setIsPanning(false)
     setIsDragging(false)
+    setIsErasing(false)
     setCurrentPath([])
 
     const container = containerRef.current
@@ -705,7 +774,7 @@ export function Whiteboard() {
       case "pencil":
         return "crosshair"
       case "eraser":
-        return "crosshair"
+        return 'url(\'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ff4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.5l9.6-9.6c1-1 2.5-1 3.5 0l5.2 5.2c1 1 1 2.5 0 3.5L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>\') 12 12, crosshair'
       case "text":
         return "text"
       default:
