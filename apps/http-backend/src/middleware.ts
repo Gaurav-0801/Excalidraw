@@ -1,5 +1,5 @@
 import "./types" // Import types to extend Express Request interface
-import jwt from "jsonwebtoken"
+import * as jwt from "jsonwebtoken";
 import { JWTService } from "@repo/backend-common/jwt"
 import type { Request, Response, NextFunction } from "express"
 
