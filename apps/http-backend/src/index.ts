@@ -1,6 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-import { middleware } from "./middleware";
+import { middleware } from "./middleware.js";
 import { CreateUserSchema, SigninSchema, CreateRoomSchema } from "@repo/common/types";
 import { prismaClient } from "@repo/db/client";
 import cors from "cors";
