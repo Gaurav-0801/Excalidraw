@@ -34,7 +34,7 @@ export default function Dashboard() {
     setIsCreating(true)
     try {
       const token = localStorage.getItem("token")
-      const response = await fetch("http://localhost:3001/room", {
+      const response = await fetch("https://your-backend-api.railway.app/room", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -45,7 +45,7 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json()
-        router.push(`http://localhost:3000?room=${data.roomId}`)
+        router.push(`https://excalidraw-whiteboard-tawny.vercel.app?room=${data.roomId}`)
       }
     } catch (error) {
       console.error("Failed to create room:", error)
@@ -58,7 +58,7 @@ export default function Dashboard() {
   const joinRoom = () => {
     const roomId = prompt("Enter room ID:")
     if (roomId) {
-      router.push(`http://localhost:3000?room=${roomId}`)
+      router.push(`https://excalidraw-whiteboard-tawny.vercel.app?room=${roomId}`)
     }
   }
 
@@ -143,7 +143,7 @@ export default function Dashboard() {
                 <div
                   key={room.id}
                   className="bg-white rounded-xl border border-border p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => router.push(`http://localhost:3000?room=${room.id}`)}
+                  onClick={() => router.push(`https://excalidraw-whiteboard-tawny.vercel.app?room=${room.id}`)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <h4 className="font-semibold text-foreground truncate">{room.slug}</h4>
