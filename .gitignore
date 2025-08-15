@@ -108,3 +108,5 @@ Thumbs.db
 
 # Prisma
 packages/db/prisma/migrations/
+
+.vercel

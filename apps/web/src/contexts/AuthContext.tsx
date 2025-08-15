@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const response = await fetch("http://localhost:3001/signin", {
+    const response = await fetch("https://http-backend0.vercel.app/signin", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (name: string, email: string, password: string) => {
-    const response = await fetch("http://localhost:3001/signup", {
+    const response = await fetch("https://http-backend0.vercel.app/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

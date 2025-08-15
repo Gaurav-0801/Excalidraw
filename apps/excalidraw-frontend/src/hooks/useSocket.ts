@@ -13,7 +13,7 @@ export function useSocket() {
       return
     }
 
-    const ws = new WebSocket(`ws://localhost:8080?token=${token}`)
+    const ws = new WebSocket(`http://websocket-rouge-seven.vercel.app?token=${token}`)
 
     ws.onopen = () => {
       console.log("WebSocket connected")

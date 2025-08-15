@@ -1,0 +1,5 @@
+{
+  "installCommand": "corepack enable && corepack prepare pnpm@8.15.8 --activate && pnpm install",
+  "buildCommand": "pnpm turbo run build --filter=apps/web...",
+  "outputDirectory": "apps/web/.vercel/output"
+}
