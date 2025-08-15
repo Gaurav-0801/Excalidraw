@@ -232,6 +232,10 @@ importers:
         version: 5.3.3
 
   packages/backend-common:
+    dependencies:
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.2
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -239,6 +243,9 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/jsonwebtoken':
+        specifier: ^9.0.2
+        version: 9.0.2
       eslint:
         specifier: ^8.57.0
         version: 8.57.0

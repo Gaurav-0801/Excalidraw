@@ -25,6 +25,7 @@ export function Whiteboard() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null) // Added file input ref for image upload
   const [isDrawing, setIsDrawing] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -39,6 +40,7 @@ export function Whiteboard() {
   const [textEditPosition, setTextEditPosition] = useState({ x: 0, y: 0 })
   const [textEditElementId, setTextEditElementId] = useState<string | null>(null)
   const [textEditValue, setTextEditValue] = useState("")
+  const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null) // Added for image positioning
   const { socket } = useSocket()
   const searchParams = useSearchParams()
 
@@ -61,7 +63,6 @@ export function Whiteboard() {
     setSelectedElementId,
   } = useWhiteboardStore()
 
-  // Initialize room connection and WebSocket listeners
   useEffect(() => {
     const room = searchParams.get("room")
     if (room) {
@@ -71,7 +72,6 @@ export function Whiteboard() {
 
   useEffect(() => {
     if (socket && roomId && !isConnected) {
-      // Join room
       const joinMessage: WebSocketMessage = {
         type: "join_room",
         roomId,
@@ -79,13 +79,11 @@ export function Whiteboard() {
       socket.send(JSON.stringify(joinMessage))
       setIsConnected(true)
 
-      // Set up WebSocket message handlers
       socket.onmessage = (event) => {
         const message: WebSocketMessage = JSON.parse(event.data)
 
         switch (message.type) {
           case "room_state":
-            // Load existing elements when joining room
             if (message.elements) {
               setElements(
                 message.elements.map((el: any) => ({
@@ -101,6 +99,7 @@ export function Whiteboard() {
                   fillColor: el.fillColor,
                   strokeStyle: el.strokeStyle,
                   text: el.text,
+                  imageData: el.imageData,
                 })),
               )
             }
@@ -122,6 +121,7 @@ export function Whiteboard() {
                 fillColor: element.fillColor,
                 strokeStyle: element.strokeStyle,
                 text: element.text,
+                imageData: element.imageData,
               })
             }
             break
@@ -173,7 +173,7 @@ export function Whiteboard() {
   }
 
   const broadcastElement = useCallback(
-    (element: any) => {
+    (element: DrawingElement) => {
       if (socket && roomId) {
         const drawingElement: DrawingElement = {
           id: element.id,
@@ -188,6 +188,7 @@ export function Whiteboard() {
           fillColor: element.fillColor,
           strokeStyle: element.strokeStyle,
           text: element.text,
+          imageData: element.imageData,
           userId: "current-user", // This should come from auth context
           timestamp: Date.now(),
         }
@@ -240,24 +241,19 @@ export function Whiteboard() {
     const ctx = canvas?.getContext("2d")
     if (!canvas || !ctx) return
 
-    // Clear canvas with a subtle background
     ctx.fillStyle = "#fefefe"
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Apply zoom and pan
     ctx.save()
     ctx.translate(panOffset.x, panOffset.y)
     ctx.scale(zoom, zoom)
 
-    // Draw enhanced grid
     drawEnhancedGrid(ctx)
 
-    // Draw all elements with improved rendering
     elements.forEach((element) => {
       drawElement(ctx, element, element.id === selectedElementId)
     })
 
-    // Draw current path for pencil tool with smooth curves
     if (selectedTool === "pencil" && currentPath.length > 1) {
       ctx.strokeStyle = strokeColor
       ctx.lineWidth = strokeWidth
@@ -265,7 +261,6 @@ export function Whiteboard() {
       ctx.lineJoin = "round"
       ctx.setLineDash([])
 
-      // Use smooth curves for better drawing experience
       ctx.beginPath()
       ctx.moveTo(currentPath[0].x, currentPath[0].y)
 
@@ -299,24 +294,20 @@ export function Whiteboard() {
 
     ctx.restore()
 
-    // Draw enhanced cursors
     cursors.forEach((cursor) => {
       const screenX = cursor.x * zoom + panOffset.x
       const screenY = cursor.y * zoom + panOffset.y
 
-      // Draw cursor with better styling
       ctx.save()
       ctx.fillStyle = cursor.color
       ctx.beginPath()
       ctx.arc(screenX, screenY, 6, 0, 2 * Math.PI)
       ctx.fill()
 
-      // Add white border
       ctx.strokeStyle = "white"
       ctx.lineWidth = 2
       ctx.stroke()
 
-      // Draw user name with better styling
       ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif"
       ctx.fillStyle = "white"
       ctx.fillRect(screenX + 10, screenY - 20, ctx.measureText(cursor.userName).width + 8, 16)
@@ -346,26 +337,22 @@ export function Whiteboard() {
     const offsetX = -panOffset.x / zoom
     const offsetY = -panOffset.y / zoom
 
-    // Extend grid well beyond viewport for infinite scrolling
     const gridPadding = Math.max(viewportWidth, viewportHeight) * 2
     const startX = offsetX - gridPadding
     const endX = offsetX + viewportWidth + gridPadding
     const startY = offsetY - gridPadding
     const endY = offsetY + viewportHeight + gridPadding
 
-    // Draw subtle grid lines
     ctx.strokeStyle = "rgba(0, 0, 0, 0.05)"
     ctx.lineWidth = 1 / zoom
     ctx.beginPath()
 
-    // Vertical lines - extend infinitely
     const firstVerticalLine = Math.floor(startX / gridSize) * gridSize
     for (let x = firstVerticalLine; x <= endX; x += gridSize) {
       ctx.moveTo(x, startY)
       ctx.lineTo(x, endY)
     }
 
-    // Horizontal lines - extend infinitely
     const firstHorizontalLine = Math.floor(startY / gridSize) * gridSize
     for (let y = firstHorizontalLine; y <= endY; y += gridSize) {
       ctx.moveTo(startX, y)
@@ -374,12 +361,11 @@ export function Whiteboard() {
 
     ctx.stroke()
 
-    // Draw major grid lines every 100px (5 * gridSize)
+    const majorGridSize = gridSize * 5
     ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"
     ctx.lineWidth = 1 / zoom
     ctx.beginPath()
 
-    const majorGridSize = gridSize * 5
     const firstMajorVertical = Math.floor(startX / majorGridSize) * majorGridSize
     for (let x = firstMajorVertical; x <= endX; x += majorGridSize) {
       ctx.moveTo(x, startY)
@@ -401,7 +387,6 @@ export function Whiteboard() {
 
       elementsToDelete.forEach((element) => {
         deleteElement(element.id)
-        // Broadcast element deletion
         if (socket && roomId) {
           const message: WebSocketMessage = {
             type: "drawing_delete",
@@ -415,8 +400,105 @@ export function Whiteboard() {
     [elements, deleteElement, socket, roomId],
   )
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !pendingImagePosition) return
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const img = new Image()
+        img.onload = () => {
+          const elementId = Date.now().toString()
+          const maxWidth = 300
+          const maxHeight = 300
+
+          let { width, height } = img
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height)
+            width *= ratio
+            height *= ratio
+          }
+
+          const newElement = {
+            id: elementId,
+            type: "image" as const,
+            x: pendingImagePosition.x,
+            y: pendingImagePosition.y,
+            width,
+            height,
+            imageData: event.target?.result as string,
+            strokeColor,
+            strokeWidth,
+            fillColor: "transparent",
+            strokeStyle,
+          }
+
+          addElement(newElement)
+          broadcastElement(newElement)
+          setPendingImagePosition(null)
+        }
+        img.src = event.target?.result as string
+      }
+      reader.readAsDataURL(file)
+    }
+
+    e.target.value = ""
+  }
+
   const handleMouseDown = (e: React.MouseEvent) => {
     const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
+
+    if (selectedTool === "image") {
+      setPendingImagePosition({ x, y })
+      fileInputRef.current?.click()
+      return
+    }
+
+    if (selectedTool === "text") {
+      if (isEditingText) {
+        finishTextEditing()
+      }
+
+      const elementId = Date.now().toString()
+
+      const newElement = {
+        id: elementId,
+        type: "text" as const,
+        x,
+        y,
+        width: 200,
+        height: 40,
+        text: "",
+        strokeColor,
+        strokeWidth,
+        fillColor: "transparent",
+        strokeStyle,
+        imageData: undefined,
+      }
+      addElement(newElement)
+      broadcastElement(newElement)
+
+      const canvas = canvasRef.current
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const screenX = Math.max(20, Math.min(window.innerWidth - 320, x * zoom + panOffset.x + rect.left))
+        const screenY = Math.max(20, Math.min(window.innerHeight - 120, y * zoom + panOffset.y + rect.top))
+
+        setTextEditPosition({ x: screenX, y: screenY })
+        setTextEditValue("")
+        setTextEditElementId(elementId)
+        setIsEditingText(true)
+
+        requestAnimationFrame(() => {
+          if (textInputRef.current) {
+            textInputRef.current.focus()
+            textInputRef.current.select()
+          }
+        })
+      }
+      return
+    }
 
     if (isEditingText && textInputRef.current) {
       finishTextEditing()
@@ -430,7 +512,6 @@ export function Whiteboard() {
     }
 
     if (selectedTool === "select") {
-      // Check if clicking on an existing element
       const clickedElement = elements.find((element) => isPointInElement({ x, y }, element))
 
       if (clickedElement) {
@@ -438,7 +519,6 @@ export function Whiteboard() {
           const now = Date.now()
           const lastClick = (clickedElement as any).lastClickTime || 0
           if (now - lastClick < 300) {
-            // Double-click within 300ms
             startTextEditing(clickedElement, x, y)
             return
           } else {
@@ -495,11 +575,10 @@ export function Whiteboard() {
         strokeWidth,
         fillColor,
         strokeStyle,
+        imageData: undefined,
       }
       addElement(newElement)
       broadcastElement(newElement)
-    } else if (selectedTool === "text") {
-      startTextEditing(null, x, y, elementId)
     }
   }
 
@@ -508,8 +587,8 @@ export function Whiteboard() {
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const screenX = x * zoom + panOffset.x + rect.left
-    const screenY = y * zoom + panOffset.y + rect.top
+    const screenX = Math.max(50, Math.min(window.innerWidth - 250, x * zoom + panOffset.x + rect.left))
+    const screenY = Math.max(50, Math.min(window.innerHeight - 100, y * zoom + panOffset.y + rect.top))
 
     setTextEditPosition({ x: screenX, y: screenY })
     setTextEditValue(element?.text || "")
@@ -522,32 +601,36 @@ export function Whiteboard() {
         type: "text" as const,
         x,
         y,
-        width: 100, // Initial width for text elements
-        height: 20, // Initial height for text elements
+        width: 250,
+        height: 60,
         text: "",
         strokeColor,
         strokeWidth,
         fillColor: "transparent",
         strokeStyle,
+        imageData: undefined,
       }
       addElement(newElement)
+      broadcastElement(newElement)
     }
 
-    // Focus the text input after a short delay
-    setTimeout(() => {
-      textInputRef.current?.focus()
-    }, 10)
+    requestAnimationFrame(() => {
+      if (textInputRef.current) {
+        textInputRef.current.focus()
+        textInputRef.current.select()
+      }
+    })
   }
 
   const finishTextEditing = () => {
     if (textEditElementId && textEditValue.trim()) {
       const updatedElement = elements.find((el) => el.id === textEditElementId)
       if (updatedElement) {
-        const fontSize = Math.max(12, strokeWidth * 8)
+        const fontSize = Math.max(16, strokeWidth * 8)
         const lines = textEditValue.trim().split("\n")
-        const maxLineLength = Math.max(...lines.map((line) => line.length))
+        const maxLineLength = Math.max(...lines.map((line) => line.length), 1)
         const estimatedWidth = Math.max(100, maxLineLength * fontSize * 0.6)
-        const estimatedHeight = Math.max(20, lines.length * fontSize * 1.2)
+        const estimatedHeight = Math.max(30, lines.length * fontSize * 1.2)
 
         const newElement = {
           ...updatedElement,
@@ -563,7 +646,6 @@ export function Whiteboard() {
         broadcastElement(newElement)
       }
     } else if (textEditElementId && !textEditValue.trim()) {
-      // Delete empty text element
       deleteElement(textEditElementId)
     }
 
@@ -576,11 +658,11 @@ export function Whiteboard() {
     setTextEditValue(e.target.value)
 
     if (textEditElementId) {
-      const fontSize = Math.max(12, strokeWidth * 8)
+      const fontSize = Math.max(16, strokeWidth * 8)
       const lines = e.target.value.split("\n")
       const maxLineLength = Math.max(...lines.map((line) => line.length), 1)
       const estimatedWidth = Math.max(100, maxLineLength * fontSize * 0.6)
-      const estimatedHeight = Math.max(20, lines.length * fontSize * 1.2)
+      const estimatedHeight = Math.max(30, lines.length * fontSize * 1.2)
 
       updateElement(textEditElementId, {
         text: e.target.value,
@@ -602,7 +684,6 @@ export function Whiteboard() {
   const handleMouseMove = (e: React.MouseEvent) => {
     const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 
-    // Broadcast cursor position
     broadcastCursor(x, y)
 
     const container = containerRef.current
@@ -623,7 +704,7 @@ export function Whiteboard() {
 
     if (isErasing) {
       eraseAtPoint(x, y)
-      setLastPanPoint({ x: e.clientX, y: e.clientY }) // Store for eraser cursor
+      setLastPanPoint({ x: e.clientX, y: e.clientY })
       return
     }
 
@@ -682,7 +763,6 @@ export function Whiteboard() {
     e.preventDefault()
 
     if (e.ctrlKey || e.metaKey) {
-      // Zoom with Ctrl/Cmd + wheel
       const delta = e.deltaY > 0 ? 0.9 : 1.1
       const newZoom = Math.max(0.1, Math.min(5, zoom * delta))
 
@@ -695,7 +775,6 @@ export function Whiteboard() {
       setZoom(newZoom)
       setPanOffset(newPanOffset)
     } else {
-      // Pan with wheel
       setPanOffset({
         x: panOffset.x - e.deltaX,
         y: panOffset.y - e.deltaY,
@@ -716,7 +795,6 @@ export function Whiteboard() {
         if (selectedElementId) {
           deleteElement(selectedElementId)
           setSelectedElementId(null)
-          // Broadcast element deletion
           if (socket && roomId) {
             const message: WebSocketMessage = {
               type: "drawing_delete",
@@ -828,6 +906,14 @@ export function Whiteboard() {
         <canvas ref={canvasRef} className="absolute inset-0" />
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        className="hidden-file-input"
+      />
+
       {isEditingText && (
         <textarea
           ref={textInputRef}
@@ -835,40 +921,24 @@ export function Whiteboard() {
           onChange={handleTextInputChange}
           onKeyDown={handleTextInputKeyDown}
           onBlur={finishTextEditing}
-          className="absolute bg-transparent border-none outline-none resize-none font-sans text-base leading-tight"
+          className="text-input-overlay"
           style={{
-            left: textEditPosition.x,
-            top: textEditPosition.y,
+            left: `${textEditPosition.x}px`,
+            top: `${textEditPosition.y}px`,
             color: strokeColor,
-            fontSize: `${Math.max(12, strokeWidth * 8)}px`,
+            fontSize: `${Math.max(18, strokeWidth * 10)}px`,
             fontWeight: strokeWidth > 2 ? "bold" : "normal",
-            minWidth: "20px",
-            minHeight: "20px",
-            zIndex: 1000,
           }}
-          placeholder="Type here..."
+          placeholder="Type your text here..."
           autoFocus
+          rows={3}
         />
       )}
 
-      {/* Enhanced connection status indicator */}
       <div className="status-indicator fixed top-4 right-4 flex items-center gap-2 bg-white rounded-lg shadow-lg px-3 py-2 text-sm">
         <div className={`status-dot ${isConnected ? "connected" : "disconnected"}`} />
         <span className="text-gray-600">{isConnected ? "Connected" : "Disconnected"}</span>
         {roomId && <span className="text-gray-400">Room: {roomId}</span>}
-      </div>
-
-      {/* Enhanced shortcuts help */}
-      <div className="shortcuts-help fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-3 text-xs text-gray-600 max-w-xs">
-        <div className="shortcuts-title font-semibold mb-2">Shortcuts</div>
-        <div className="shortcut-item">V - Select</div>
-        <div className="shortcut-item">H - Hand</div>
-        <div className="shortcut-item">R - Rectangle</div>
-        <div className="shortcut-item">P - Pencil</div>
-        <div className="shortcut-item">T - Text</div>
-        <div className="shortcut-item">Del - Delete</div>
-        <div className="shortcut-item">Esc - Deselect</div>
-        <div className="shortcut-item">Ctrl+Wheel - Zoom</div>
       </div>
     </div>
   )

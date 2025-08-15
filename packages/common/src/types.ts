@@ -22,7 +22,19 @@ export type CreateRoomType = z.infer<typeof CreateRoomSchema>
 // Whiteboard types
 export interface DrawingElement {
   id: string
-  type: "rectangle" | "diamond" | "circle" | "arrow" | "line" | "pencil" | "text"
+  type:
+    | "select"
+    | "hand"
+    | "rectangle"
+    | "diamond"
+    | "circle"
+    | "arrow"
+    | "line"
+    | "pencil"
+    | "text"
+    | "image"
+    | "eraser"
+    | "laser"
   x: number
   y: number
   width?: number
@@ -33,8 +45,9 @@ export interface DrawingElement {
   fillColor: string
   strokeStyle?: "solid" | "dashed" | "dotted"
   text?: string
-  userId: string
-  timestamp: number
+  imageData?: string
+  userId?: string // Made optional to fix TypeScript errors
+  timestamp?: number // Made optional to fix TypeScript errors
 }
 
 export interface WebSocketMessage {

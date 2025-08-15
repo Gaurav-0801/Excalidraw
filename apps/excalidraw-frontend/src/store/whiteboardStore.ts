@@ -32,6 +32,9 @@ export interface Element {
   fillColor: string
   strokeStyle?: "solid" | "dashed" | "dotted"
   text?: string
+  imageData?: string // Added imageData property
+  userId?: string // Added for collaboration
+  timestamp?: number // Added for collaboration
 }
 
 interface WhiteboardState {

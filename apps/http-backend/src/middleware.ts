@@ -1,3 +1,4 @@
+import "./types" // Import types to extend Express Request interface
 import jwt from "jsonwebtoken"
 import { JWTService } from "@repo/backend-common/jwt"
 import type { Request, Response, NextFunction } from "express"
@@ -12,7 +13,6 @@ export function middleware(req: Request, res: Response, next: NextFunction) {
 
   try {
     const decoded = JWTService.verifyToken(token)
-    // @ts-ignore: Adding user data to request
     req.userId = decoded.userId
     req.userEmail = decoded.email
     req.userName = decoded.name

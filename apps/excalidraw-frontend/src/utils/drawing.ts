@@ -1,5 +1,8 @@
-import type { Element, Point } from "../store/whiteboardStore"
+import type { Element } from "@repo/common/types"
+import type { Point } from "../store/whiteboardStore"
 import { getStroke } from "perfect-freehand"
+
+const imageCache = new Map<string, HTMLImageElement>()
 
 export function drawElement(ctx: CanvasRenderingContext2D, element: Element, isSelected = false) {
   ctx.save()
@@ -43,6 +46,9 @@ export function drawElement(ctx: CanvasRenderingContext2D, element: Element, isS
       break
     case "text":
       drawText(ctx, element)
+      break
+    case "image":
+      drawImage(ctx, element)
       break
     default:
       break
@@ -207,7 +213,7 @@ function drawText(ctx: CanvasRenderingContext2D, element: Element) {
   const { x, y, strokeColor, strokeWidth } = element
   const fontSize = Math.max(12, strokeWidth * 8)
 
-  ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+  ctx.font = `${strokeWidth > 2 ? "bold" : "normal"} ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
   ctx.fillStyle = strokeColor
   ctx.textBaseline = "top"
 
@@ -220,6 +226,84 @@ function drawText(ctx: CanvasRenderingContext2D, element: Element) {
   })
 }
 
+function drawImage(ctx: CanvasRenderingContext2D, element: Element) {
+  if (!element.imageData) return
+
+  const { x, y, width = 0, height = 0, imageData } = element
+
+  // Check cache first
+  let img = imageCache.get(imageData)
+
+  if (!img) {
+    // Create new image and cache it
+    img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      // Image loaded, trigger redraw
+      // This will be handled by the canvas redraw cycle
+    }
+    img.src = imageData
+    imageCache.set(imageData, img)
+  }
+
+  // Only draw if image is loaded
+  if (img.complete && img.naturalWidth > 0) {
+    try {
+      ctx.drawImage(img, x, y, width, height)
+
+      // Draw border around image
+      ctx.strokeStyle = element.strokeColor || "#000000"
+      ctx.lineWidth = 1
+      ctx.setLineDash([])
+      ctx.strokeRect(x, y, width, height)
+    } catch (error) {
+      // Fallback: draw a placeholder rectangle
+      drawImagePlaceholder(ctx, element)
+    }
+  } else {
+    // Image not loaded yet, draw placeholder
+    drawImagePlaceholder(ctx, element)
+  }
+}
+
+function drawImagePlaceholder(ctx: CanvasRenderingContext2D, element: Element) {
+  const { x, y, width = 0, height = 0 } = element
+
+  // Draw placeholder rectangle
+  ctx.fillStyle = "#f3f4f6"
+  ctx.fillRect(x, y, width, height)
+
+  // Draw border
+  ctx.strokeStyle = "#d1d5db"
+  ctx.lineWidth = 2
+  ctx.setLineDash([])
+  ctx.strokeRect(x, y, width, height)
+
+  // Draw image icon in center
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const iconSize = Math.min(width, height) * 0.3
+
+  ctx.strokeStyle = "#9ca3af"
+  ctx.lineWidth = 2
+  ctx.setLineDash([])
+
+  // Simple image icon
+  ctx.strokeRect(centerX - iconSize / 2, centerY - iconSize / 2, iconSize, iconSize)
+  ctx.beginPath()
+  ctx.arc(centerX - iconSize / 4, centerY - iconSize / 4, iconSize / 8, 0, 2 * Math.PI)
+  ctx.stroke()
+
+  // Mountain shape
+  ctx.beginPath()
+  ctx.moveTo(centerX - iconSize / 3, centerY + iconSize / 3)
+  ctx.lineTo(centerX - iconSize / 6, centerY)
+  ctx.lineTo(centerX, centerY + iconSize / 6)
+  ctx.lineTo(centerX + iconSize / 3, centerY - iconSize / 6)
+  ctx.lineTo(centerX + iconSize / 3, centerY + iconSize / 3)
+  ctx.stroke()
+}
+
 export function isPointInElement(point: Point, element: Element): boolean {
   const bounds = getElementBounds(element)
   const tolerance = Math.max(5, element.strokeWidth)
@@ -228,6 +312,7 @@ export function isPointInElement(point: Point, element: Element): boolean {
     case "rectangle":
     case "diamond":
     case "text":
+    case "image": // Added image to point-in-element detection
       return (
         point.x >= bounds.x - tolerance &&
         point.x <= bounds.x + bounds.width + tolerance &&
@@ -304,12 +389,16 @@ export function getElementBounds(element: Element): { x: number; y: number; widt
   }
 
   if (element.type === "text" && text) {
-    // Estimate text bounds
+    if (width > 0 && height > 0) {
+      return { x, y, width, height }
+    }
+
+    // Fallback calculation for text bounds
     const fontSize = Math.max(12, strokeWidth * 8)
     const lines = text.split("\n")
-    const maxLineLength = Math.max(...lines.map((line) => line.length))
-    const estimatedWidth = maxLineLength * fontSize * 0.6
-    const estimatedHeight = lines.length * fontSize * 1.2
+    const maxLineLength = Math.max(...lines.map((line) => line.length), 1)
+    const estimatedWidth = Math.max(100, maxLineLength * fontSize * 0.6)
+    const estimatedHeight = Math.max(20, lines.length * fontSize * 1.2)
 
     return {
       x,
