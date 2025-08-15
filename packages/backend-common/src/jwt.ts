@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken"
+import * as jwt from "jsonwebtoken";
 import { JWT_SECRET } from "./config"
 
 export interface JWTPayload {
