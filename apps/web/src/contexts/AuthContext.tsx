@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const response = await fetch("https://http-backend0.vercel.app/signin", {
+    const response = await fetch("https://http-1zv7.onrender.com/signin", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (name: string, email: string, password: string) => {
-    const response = await fetch("https://http-backend0.vercel.app/signup", {
+    const response = await fetch("https://http-1zv7.onrender.com/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
