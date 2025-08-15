@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "build":"turbo run build --filter=@repo/http-backend...",
+  "build": "turbo run build --filter=@repo/http-backend",
   "dev": "tsx watch src/index.ts",
   "start": "node dist/index.js"
 },
