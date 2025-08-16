@@ -45,11 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username: email, password }),
+      body: JSON.stringify({ email, password }), // ✅ FIXED: use email, not username
     })
 
     if (!response.ok) {
-      throw new Error("Sign in failed")
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.message || "Sign in failed")
     }
 
     const data = await response.json()
@@ -58,21 +59,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user)
   }
 
- const signUp = async (name: string, email: string, password: string) => {
-  const response = await fetch("https://http-1zv7.onrender.com/signup", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name, email, password }), 
-  })
+  const signUp = async (name: string, email: string, password: string) => {
+    const response = await fetch("https://http-1zv7.onrender.com/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, email, password }), // ✅ matches backend schema
+    })
 
-  if (!response.ok) {
-    throw new Error("Sign up failed")
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.message || "Sign up failed")
+    }
+
+    // Auto-login after signup
+    await signIn(email, password)
   }
-  await signIn(email, password)
-}
-
 
   const signOut = () => {
     localStorage.removeItem("token")
@@ -80,7 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
