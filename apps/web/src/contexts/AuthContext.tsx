@@ -24,14 +24,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
+    const accessToken = localStorage.getItem("accessToken")
     const userData = localStorage.getItem("user")
 
-    if (token && userData) {
+    if (accessToken && userData) {
       try {
         setUser(JSON.parse(userData))
       } catch (error) {
-        localStorage.removeItem("token")
+        localStorage.removeItem("accessToken")
         localStorage.removeItem("user")
       }
     }
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }), 
+      body: JSON.stringify({ email, password }),
     })
 
     if (!response.ok) {
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, email, password }), // ✅ matches backend schema
+      body: JSON.stringify({ name, email, password }),
     })
 
     if (!response.ok) {
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = () => {
-    localStorage.removeItem("token")
+    localStorage.removeItem("accessToken")
     localStorage.removeItem("user")
     setUser(null)
   }
