@@ -58,22 +58,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user)
   }
 
-  const signUp = async (name: string, email: string, password: string) => {
-    const response = await fetch("https://http-1zv7.onrender.com/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name, username: email, password }),
-    })
+ const signUp = async (name: string, email: string, password: string) => {
+  const response = await fetch("https://http-1zv7.onrender.com/signup", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, email, password }), 
+  })
 
-    if (!response.ok) {
-      throw new Error("Sign up failed")
-    }
-
-    // After successful signup, sign in automatically
-    await signIn(email, password)
+  if (!response.ok) {
+    throw new Error("Sign up failed")
   }
+  await signIn(email, password)
+}
+
 
   const signOut = () => {
     localStorage.removeItem("token")
