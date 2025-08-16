@@ -34,7 +34,7 @@ export default function Dashboard() {
     setIsCreating(true)
     try {
       const token = localStorage.getItem("token")
-      const response = await fetch("https://your-backend-api.railway.app/room", {
+      const response = await fetch("https://http-1zv7.onrender.com/room", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
