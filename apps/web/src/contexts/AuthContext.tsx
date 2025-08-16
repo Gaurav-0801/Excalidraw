@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }), // ✅ FIXED: use email, not username
+      body: JSON.stringify({ email, password }), 
     })
 
     if (!response.ok) {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await response.json()
-    localStorage.setItem("token", data.token)
+    localStorage.setItem("accessToken", data.token)
     localStorage.setItem("user", JSON.stringify(data.user))
     setUser(data.user)
   }
