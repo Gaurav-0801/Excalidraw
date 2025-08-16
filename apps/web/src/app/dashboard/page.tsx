@@ -33,7 +33,7 @@ export default function Dashboard() {
 
     setIsCreating(true)
     try {
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("accessToken")
       const response = await fetch("https://http-1zv7.onrender.com/room", {
         method: "POST",
         headers: {
