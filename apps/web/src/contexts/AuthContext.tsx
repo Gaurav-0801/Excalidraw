@@ -54,8 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await response.json()
-    localStorage.setItem("accessToken", data.token)
+
+    // ✅ FIX: use accessToken (not token)
+    localStorage.setItem("accessToken", data.accessToken)
     localStorage.setItem("user", JSON.stringify(data.user))
+
     setUser(data.user)
   }
 
